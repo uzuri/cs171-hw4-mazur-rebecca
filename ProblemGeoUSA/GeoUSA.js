@@ -48,8 +48,15 @@ var screencoord = projection([-71.06, 42.36]);
 
 var g = svg.append("g");
 
+var completeDataSet;
+
+
+radScale = d3.scale.linear(); 
+
 function loadStations() {
     d3.csv("../data/NSRDB_StationsMeta.csv",function(error,data){
+    		    
+    		    
     		    
     		    
     	// Some locations fall outside our map; just remove them
@@ -60,6 +67,8 @@ function loadStations() {
     			return d;
     		}
     	});
+    	
+    	console.log(completeDataSet);
     	
     	var stations = g.selectAll("circle")
 		.data(cleandata)
@@ -82,8 +91,22 @@ function loadStations() {
 			}
 			return 0;
 		})
-		.attr("r", 2)
-		.attr("fill", "red");
+		.attr("r", function(d){
+			if (completeDataSet[d.USAF] && completeDataSet[d.USAF].sum > 0)
+			{
+				console.log(completeDataSet[d.USAF].sum);
+				return radScale(completeDataSet[d.USAF].sum);
+			}
+			return 1
+		});
+		
+	stations.classed("hasData", function(d) {
+		if (completeDataSet[d.USAF] && completeDataSet[d.USAF].sum > 0)
+		{
+			return true;
+		}
+		return false;
+	});
     		    
 	//loadStats();
     });
@@ -95,8 +118,21 @@ function loadStats() {
     d3.json("../data/reducedMonthStationHour2003_2004.json", function(error,data){
         completeDataSet= data;
 
-		//....
-		
+        // Can't use raw data for circle radiuses (unless we like a big 
+        // blue block instead of a map) so make a scale
+        
+        
+	var max = d3.max(completeDataSet, function(d) {
+		console.log(d);
+		return d.sum;
+	});
+	
+        
+        radScale.domain([0, 100000000]).range([0, 10]);
+        
+        console.log(radScale.domain());
+	
+        loadStations();
     })
 
 }
@@ -136,7 +172,7 @@ d3.json("../data/us-named.json", function(error, data) {
 		.attr("r", 2)
 		.attr("fill", "red");*/
 	
-        loadStations();
+        loadStats();
 });
 
 
