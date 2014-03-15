@@ -1,6 +1,8 @@
 /**
  * Created by hen on 3/8/14.
  */
+ 
+ 
 
 var margin = {
     top: 50,
@@ -11,6 +13,7 @@ var margin = {
 
 var width = 1060 - margin.left - margin.right;
 var height = 800 - margin.bottom - margin.top;
+var centered;
 
 var bbVis = {
     x: 100,
@@ -35,16 +38,54 @@ var svg = canvas.append("g").attr({
 
 
 var projection = d3.geo.albersUsa().translate([width / 2, height / 2]);//.precision(.1);
+
 var path = d3.geo.path().projection(projection);
 
 
 var dataSet = {};
 
+var screencoord = projection([-71.06, 42.36]);
 
+var g = svg.append("g");
 
 function loadStations() {
     d3.csv("../data/NSRDB_StationsMeta.csv",function(error,data){
-        //....
+    		    
+    		    
+    	// Some locations fall outside our map; just remove them
+    	// I used a filter without being told to!  Yay!
+    	var cleandata = data.filter(function(d){
+    		if (projection([parseFloat(d['NSRDB_LON(dd)']), parseFloat(d['NSRDB_LAT (dd)'])]))
+    		{
+    			return d;
+    		}
+    	});
+    	
+    	var stations = g.selectAll("circle")
+		.data(cleandata)
+		.enter()
+		.append("circle")
+    		.attr("class", "station")
+		.attr("cx", function(d) {
+			screencoord = projection([parseFloat(d['NSRDB_LON(dd)']), parseFloat(d['NSRDB_LAT (dd)'])]);
+			if (screencoord)
+			{
+				return screencoord[0];
+			}
+			return 0;
+		})
+		.attr("cy", function(d) {
+			screencoord = projection([parseFloat(d['NSRDB_LON(dd)']), parseFloat(d['NSRDB_LAT (dd)'])]);
+			if (screencoord)
+			{
+				return screencoord[1];
+			}
+			return 0;
+		})
+		.attr("r", 2)
+		.attr("fill", "red");
+    		    
+	//loadStats();
     });
 }
 
@@ -56,7 +97,6 @@ function loadStats() {
 
 		//....
 		
-        loadStations();
     })
 
 }
@@ -64,13 +104,39 @@ function loadStats() {
 
 d3.json("../data/us-named.json", function(error, data) {
 
-    var usMap = topojson.feature(data,data.objects.states).features
-    console.log(usMap);
-
-    //svg.selectAll(".country").data(usMap).enter().... 
-    // see also: http://bl.ocks.org/mbostock/4122298
-
-    loadStats();
+	var usMap = topojson.feature(data,data.objects.states).features;
+	
+	
+	/*svg.selectAll(".states")
+		.data(usMap)
+		.enter()
+		.append("path")
+		.attr("class", "state")
+		.attr("d", path)
+		.on("click", clicked);*/
+		
+	
+	// Use nested groups like in example to facilitate zooming	
+	g.append("g")
+		.attr("id", "states")
+		.selectAll("path")
+		.data(usMap)
+		.enter()
+		.append("path")
+		.attr("class", "state")
+		.attr("d", path)
+		.on("click", clicked);
+		
+	
+	// Test point placement and zooming with Boston
+	/*var screencoord = projection([-71.06, 42.36]);
+	var boston = g.append("circle")
+		.attr("cx", screencoord[0])
+		.attr("cy", screencoord[1])
+		.attr("r", 2)
+		.attr("fill", "red");*/
+	
+        loadStations();
 });
 
 
@@ -88,13 +154,33 @@ var updateDetailVis = function(data, name){
 
 
 // ZOOMING
-function zoomToBB() {
-
-
+function clicked(d) 
+{
+	var x, y, k;
+	
+	if (d && centered !== d) 
+	{
+		var centroid = path.centroid(d);
+		x = centroid[0];
+		y = centroid[1];
+		k = 4;
+		centered = d;
+	} 
+	else 
+	{
+		x = width / 2;
+		y = height / 2;
+		k = 1;
+		centered = null;
+	}
+	
+	g.selectAll("path")
+		.classed("active", centered && function(d) 
+		{ return d === centered; });
+	
+	g.transition()
+		.duration(750)
+		.attr("transform", "translate(" + width / 2 + "," + height / 2 + ")scale(" + k + ")translate(" + -x + "," + -y + ")")
+		.style("stroke-width", 1 / k + "px");
 }
-
-function resetZoom() {
-    
-}
-
 
