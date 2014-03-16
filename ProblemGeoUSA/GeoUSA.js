@@ -5,26 +5,24 @@
  
 
 var margin = {
-    top: 50,
-    right: 50,
-    bottom: 50,
-    left: 50
+    top: 20,
+    right: 20,
+    dright: 100, 
+    bottom: 20,
+    dbottom: 100,
+    left: 20
 };
 
-var width = 1060 - margin.left - margin.right;
-var height = 800 - margin.bottom - margin.top;
+var width = 850 - margin.left - margin.right;
+var height = 500 - margin.bottom - margin.top;
 var centered;
 
-var bbVis = {
-    x: 100,
-    y: 10,
-    w: width - 100,
-    h: 300
-};
+var dheight = 300,
+	dwidth = 500;
 
 var detailVis = d3.select("#detailVis").append("svg").attr({
-    width:350,
-    height:200
+    width: dwidth,
+    height: dheight
 })
 
 var canvas = d3.select("#vis").append("svg").attr({
@@ -51,7 +49,11 @@ var g = svg.append("g");
 var completeDataSet;
 
 
-radScale = d3.scale.linear(); 
+var radScale = d3.scale.linear(); 
+var xScale = d3.scale.linear();  
+var yScale = d3.scale.ordinal().rangeRoundBands([margin.dbottom, dheight - margin.top - margin.dbottom], .8, 0).domain(['00:00:00 AM', '01:00:00 AM', '02:00:00 AM', '03:00:00 AM', '04:00:00 AM', '05:00:00 AM', '06:00:00 AM', '07:00:00 AM', '07:00:00 AM', '09:00:00 AM', '10:00:00 AM', '11:00:00 AM', '12:00:00 AM', '13:00:00 PM', '14:00:00 PM', '15:00:00 PM', '16:00:00 PM', '17:00:00 PM', '18:00:00 PM', '19:00:00 PM', '20:00:00 PM', '21:00:00 PM', '22:00:00 PM', '23:00:00 PM', ]);
+
+console.log(yScale.range());
 
 function loadStations() {
     d3.csv("../data/NSRDB_StationsMeta.csv",function(error,data){
@@ -69,6 +71,19 @@ function loadStations() {
     	});
     	
     	console.log(completeDataSet);
+    	
+    	// Sort data so the smaller stations will end up written last and 
+    	// therefore not be covered up by bigger stations while hovering
+    	cleandata.sort(function(a, b) {
+    		if (completeDataSet[a.USAF] && completeDataSet[b.USAF])
+    		{
+    			return d3.descending(completeDataSet[a.USAF].sum, completeDataSet[b.USAF].sum);
+    		}
+    		return d3.descending(a.USAF, b.USAF);
+    	});
+    	
+    	// Make the empty detail vis
+    	createDetailVis();
     	
     	var stations = g.selectAll("circle")
 		.data(cleandata)
@@ -94,11 +109,43 @@ function loadStations() {
 		.attr("r", function(d){
 			if (completeDataSet[d.USAF] && completeDataSet[d.USAF].sum > 0)
 			{
-				console.log(completeDataSet[d.USAF].sum);
 				return radScale(completeDataSet[d.USAF].sum);
 			}
 			return 1
-		});
+		})
+		.on("mouseover", function(d){
+			// Need to come back and make this not grow when zoomed, it's a little crazy this way
+			g.append("foreignObject")
+				.attr("id", "hovernode")
+				.attr("x", function() {
+					screencoord = projection([parseFloat(d['NSRDB_LON(dd)']), parseFloat(d['NSRDB_LAT (dd)'])]);
+					if (screencoord)
+					{
+						return screencoord[0];
+					}
+					return 0;
+				})
+				.attr("y", function() { 
+					screencoord = projection([parseFloat(d['NSRDB_LON(dd)']), parseFloat(d['NSRDB_LAT (dd)'])]);
+					if (screencoord)
+					{
+						return screencoord[1];
+					}
+					return 0;
+				 })
+				.attr("width", 300)
+				.attr("height", 40)
+				.html(function(){
+					return "<p class=\"tooltip\"><span>" + d.STATION + ": " + completeDataSet[d.USAF].sum + "</span></p>";
+				});
+		})
+		.on("mouseout", function(){	
+			d3.selectAll("#hovernode")
+				.transition()
+				.duration(100)
+				.remove();
+		})
+		.on("click", updateDetailVis);
 		
 	stations.classed("hasData", function(d) {
 		if (completeDataSet[d.USAF] && completeDataSet[d.USAF].sum > 0)
@@ -116,21 +163,21 @@ function loadStations() {
 function loadStats() {
 
     d3.json("../data/reducedMonthStationHour2003_2004.json", function(error,data){
-        completeDataSet= data;
+        completeDataSet = data;
 
         // Can't use raw data for circle radiuses (unless we like a big 
         // blue block instead of a map) so make a scale
         
+        var max = 0;
         
-	var max = d3.max(completeDataSet, function(d) {
-		console.log(d);
-		return d.sum;
-	});
+	for (var key in data) {
+		max = Math.max(max, data[key].sum);
+	}
 	
-        
-        radScale.domain([0, 100000000]).range([0, 10]);
-        
-        console.log(radScale.domain());
+	
+	// 1's a little small to hover over, so we make 2 the lower limit
+        radScale.domain([0, max]).range([2, 10]);
+        xScale.domain([0, max]).range([margin.left, dwidth - margin.left - margin.dright]);
 	
         loadStations();
     })
@@ -176,13 +223,37 @@ d3.json("../data/us-named.json", function(error, data) {
 });
 
 
-
-// ALL THESE FUNCTIONS are just a RECOMMENDATION !!!!
+// Make Detail
 var createDetailVis = function(){
 
+	
+		var xAxis = d3.svg.axis().scale(xScale).orient("bottom")
+		var yAxis = d3.svg.axis().scale(yScale).orient("right");
+		
+		
+		detailVis.append("g")
+			.attr("id", "xaxis")
+			.attr("class", "axis")
+			.attr("transform", "translate(0," + (dheight - margin.dbottom) + ")")
+			.call(xAxis)
+			.selectAll("text")  
+			.style("text-anchor", "end")
+			.attr("dx", "-.8em")
+			.attr("dy", ".15em")
+			.attr("transform", function(d) {
+				return "rotate(-65)" 
+			});
+			
+		detailVis.append("g")
+			.attr("id", "yaxis")
+			.attr("class", "axis")
+			.attr("transform", "translate(" + (dwidth - margin.dright - margin.left) + ", 0)")
+			.call(yAxis);
+	
 }
 
 
+// Change Detail
 var updateDetailVis = function(data, name){
   
 }
