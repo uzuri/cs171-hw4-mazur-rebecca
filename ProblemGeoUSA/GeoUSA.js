@@ -39,6 +39,11 @@ var projection = d3.geo.albersUsa().translate([width / 2, height / 2]);//.precis
 
 var path = d3.geo.path().projection(projection);
 
+var detaillabel = detailVis.append("text")
+		.attr("x", margin.left)
+		.attr("y", margin.top)
+		.text("No Station Selected");
+
 
 var dataSet = {};
 
@@ -48,12 +53,13 @@ var g = svg.append("g");
 
 var completeDataSet;
 
+var bargroups, bars;
+
 
 var radScale = d3.scale.linear(); 
-var xScale = d3.scale.linear();  
-var yScale = d3.scale.ordinal().rangeRoundBands([margin.dbottom, dheight - margin.top - margin.dbottom], .8, 0).domain(['00:00:00 AM', '01:00:00 AM', '02:00:00 AM', '03:00:00 AM', '04:00:00 AM', '05:00:00 AM', '06:00:00 AM', '07:00:00 AM', '07:00:00 AM', '09:00:00 AM', '10:00:00 AM', '11:00:00 AM', '12:00:00 AM', '13:00:00 PM', '14:00:00 PM', '15:00:00 PM', '16:00:00 PM', '17:00:00 PM', '18:00:00 PM', '19:00:00 PM', '20:00:00 PM', '21:00:00 PM', '22:00:00 PM', '23:00:00 PM', ]);
+var yScale = d3.scale.linear();  
+var xScale = d3.scale.ordinal().rangeRoundBands([margin.left, dwidth - margin.dright - margin.left], .8, 0).domain(['00:00:00 AM', '01:00:00 AM', '02:00:00 AM', '03:00:00 AM', '04:00:00 AM', '05:00:00 AM', '06:00:00 AM', '07:00:00 AM', '07:00:00 AM', '09:00:00 AM', '10:00:00 AM', '11:00:00 AM', '12:00:00 PM', '13:00:00 PM', '14:00:00 PM', '15:00:00 PM', '16:00:00 PM', '17:00:00 PM', '18:00:00 PM', '19:00:00 PM', '20:00:00 PM', '21:00:00 PM', '22:00:00 PM', '23:00:00 PM', ]);
 
-console.log(yScale.range());
 
 function loadStations() {
     d3.csv("../data/NSRDB_StationsMeta.csv",function(error,data){
@@ -69,8 +75,6 @@ function loadStations() {
     			return d;
     		}
     	});
-    	
-    	console.log(completeDataSet);
     	
     	// Sort data so the smaller stations will end up written last and 
     	// therefore not be covered up by bigger stations while hovering
@@ -121,7 +125,7 @@ function loadStations() {
 					screencoord = projection([parseFloat(d['NSRDB_LON(dd)']), parseFloat(d['NSRDB_LAT (dd)'])]);
 					if (screencoord)
 					{
-						return screencoord[0];
+						return screencoord[0] + 3;
 					}
 					return 0;
 				})
@@ -129,7 +133,7 @@ function loadStations() {
 					screencoord = projection([parseFloat(d['NSRDB_LON(dd)']), parseFloat(d['NSRDB_LAT (dd)'])]);
 					if (screencoord)
 					{
-						return screencoord[1];
+						return screencoord[1] + 3;
 					}
 					return 0;
 				 })
@@ -168,16 +172,20 @@ function loadStats() {
         // Can't use raw data for circle radiuses (unless we like a big 
         // blue block instead of a map) so make a scale
         
-        var max = 0;
+        var max = 0,
+        	detailmax = 0;
         
 	for (var key in data) {
 		max = Math.max(max, data[key].sum);
+		
+		for (var dkey in data[key].hourly) {
+			detailmax = Math.max(detailmax, data[key].hourly[dkey]);
+		}
 	}
-	
 	
 	// 1's a little small to hover over, so we make 2 the lower limit
         radScale.domain([0, max]).range([2, 10]);
-        xScale.domain([0, max]).range([margin.left, dwidth - margin.left - margin.dright]);
+        yScale.domain([detailmax, 0]).range([margin.top, dheight - margin.dbottom]);
 	
         loadStations();
     })
@@ -249,13 +257,45 @@ var createDetailVis = function(){
 			.attr("class", "axis")
 			.attr("transform", "translate(" + (dwidth - margin.dright - margin.left) + ", 0)")
 			.call(yAxis);
-	
+			
+		
+		bargroups = detailVis.append("g")
+			.selectAll("g")
+			.data(xScale.domain())
+			.enter()
+			.append("g")
+			.attr("id", function(d){
+				return "bar" + d[0] + d[1];
+			})
+			.attr("transform", function(d, i) { 
+				return "translate(" + xScale(d) +", 0)"; });
+			
+		
+		bars = bargroups.append("rect")
+			.attr("width", 10)
+			.attr("height", 0)
+			.attr("y", function(d) {
+					return (dheight - margin.dbottom);
+				})
+			.attr("fill", "black");
+		
+			
 }
 
 
 // Change Detail
 var updateDetailVis = function(data, name){
-  
+	detaillabel.text(data.STATION);
+	
+	bargroups.selectAll("rect")
+		.transition()
+		.attr("height", function(d){
+			console.log(yScale(completeDataSet[data.USAF].hourly[d]));
+			return (dheight - margin.dbottom) - yScale(completeDataSet[data.USAF].hourly[d]);
+		})
+		.attr("y", function(d) {
+			return yScale(completeDataSet[data.USAF].hourly[d]);
+		});
 }
 
 
