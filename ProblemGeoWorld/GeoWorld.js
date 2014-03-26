@@ -23,6 +23,8 @@ var bbVis = {
 
 var dataSet = {};
 
+var worldmap;
+
 var svg = d3.select("#vis").append("svg").attr({
     width: width + margin.left + margin.right,
     height: height + margin.top + margin.bottom
@@ -31,7 +33,7 @@ var svg = d3.select("#vis").append("svg").attr({
     });
 
 // --- this is just for fun.. play arround with it iof you like :)
-var projectionMethods = [
+/*var projectionMethods = [
     {
         name:"mercator",
         method: d3.geo.mercator().translate([width / 2, height / 2])//.precision(.1);
@@ -42,8 +44,11 @@ var projectionMethods = [
         name:"stereo",
         method: d3.geo.stereographic().translate([width / 2, height / 2])//.precision(.1);
     }
-];
+];*/
 // --- this is just for fun.. play arround with it iof you like :)
+
+
+var projection = d3.geo.mercator().translate([width / 2, height / 2]);//.precision(.1);
 
 
 var actualProjectionMethod = 0;
@@ -52,7 +57,7 @@ var colorMax = colorbrewer.Greens[3][2];
 
 
 
-var path = d3.geo.path().projection(projectionMethods[0].method);
+var path = d3.geo.path().projection(projection);
 
 
 
@@ -64,6 +69,8 @@ function runAQueryOn(indicatorString) {
         jsonpCallback:'getdata',
         dataType:'jsonp',
         success: function (data, status){
+        // http://api.worldbank.org/countries/all/indicators/SP.POP.TOTL?format=json&date=2000&per_page=252
+        console.log(data);
            
 
         }
@@ -75,8 +82,17 @@ function runAQueryOn(indicatorString) {
 
 
 var initVis = function(error, indicators, world){
-    console.log(indicators);
-    console.log(world);
+	worldmap = svg.append("g")
+		.attr("id", "countries")
+		.selectAll("path")
+		.data(world.features)
+		.enter()
+		.append("path")
+		.attr("class", "country")
+		.attr("d", path);
+	
+	//console.log(indicators);
+	console.log(world);
 
 
 }
@@ -94,28 +110,27 @@ queue()
 
 
 // just for fun 
-var textLabel = svg.append("text").text(projectionMethods[actualProjectionMethod].name).attr({
+/*var textLabel = svg.append("text").text(projectionMethods[actualProjectionMethod].name).attr({
     "transform":"translate(-40,-30)"
-})
+})*/
 
+/*
 var changePro = function(){
     actualProjectionMethod = (actualProjectionMethod+1) % (projectionMethods.length);
 
     textLabel.text(projectionMethods[actualProjectionMethod].name);
     path= d3.geo.path().projection(projectionMethods[actualProjectionMethod].method);
     //svg.selectAll(".country").transition().duration(750).attr("d",path);
-};
+};*/
 
+/*
 d3.select("body").append("button").text("changePro").on({
     "click":changePro
 })
+*/
 
 
 
-
-
-
-})
 
 
 
